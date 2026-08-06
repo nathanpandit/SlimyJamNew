@@ -1,0 +1,20 @@
+{
+    "name": "SlimyJam.Editor",
+    "rootNamespace": "SlimyJam.EditorTools",
+    "references": [
+        "SlimyJam.Runtime",
+        "Dreamteck.Splines",
+        "Dreamteck.Utilities"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

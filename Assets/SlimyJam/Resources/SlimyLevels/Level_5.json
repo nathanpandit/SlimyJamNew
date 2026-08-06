@@ -1,0 +1,262 @@
+{
+  "levelIndex": 5,
+  "groundNodes": [
+    {
+      "id": 100,
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        101
+      ]
+    },
+    {
+      "id": 101,
+      "position": {
+        "x": 1.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        100,
+        102
+      ]
+    },
+    {
+      "id": 102,
+      "position": {
+        "x": 2.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        101,
+        103
+      ]
+    },
+    {
+      "id": 103,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        102,
+        104,
+        114
+      ]
+    },
+    {
+      "id": 104,
+      "position": {
+        "x": 4.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        103,
+        105
+      ]
+    },
+    {
+      "id": 105,
+      "position": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        104,
+        106
+      ]
+    },
+    {
+      "id": 106,
+      "position": {
+        "x": 6.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        105,
+        116
+      ]
+    },
+    {
+      "id": 107,
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        108
+      ]
+    },
+    {
+      "id": 108,
+      "position": {
+        "x": 1.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        107,
+        109
+      ]
+    },
+    {
+      "id": 109,
+      "position": {
+        "x": 2.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        108,
+        110
+      ]
+    },
+    {
+      "id": 110,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        109,
+        111,
+        115
+      ]
+    },
+    {
+      "id": 111,
+      "position": {
+        "x": 4.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        110,
+        112
+      ]
+    },
+    {
+      "id": 112,
+      "position": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        111,
+        113
+      ]
+    },
+    {
+      "id": 113,
+      "position": {
+        "x": 6.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        112,
+        117
+      ]
+    },
+    {
+      "id": 114,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 1.0
+      },
+      "connectedNodeIds": [
+        103,
+        115
+      ]
+    },
+    {
+      "id": 115,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 2.0
+      },
+      "connectedNodeIds": [
+        110,
+        114
+      ]
+    },
+    {
+      "id": 116,
+      "position": {
+        "x": 6.0,
+        "y": 0.0,
+        "z": 1.0
+      },
+      "connectedNodeIds": [
+        106,
+        117
+      ]
+    },
+    {
+      "id": 117,
+      "position": {
+        "x": 6.0,
+        "y": 0.0,
+        "z": 2.0
+      },
+      "connectedNodeIds": [
+        113,
+        116
+      ]
+    }
+  ],
+  "ropes": [
+    {
+      "id": 1,
+      "color": "Purple",
+      "occupiedNodeIds": [
+        100,
+        101,
+        102
+      ]
+    },
+    {
+      "id": 2,
+      "color": "Purple",
+      "occupiedNodeIds": [
+        107,
+        108,
+        109
+      ]
+    },
+    {
+      "id": 3,
+      "color": "Pink",
+      "occupiedNodeIds": [
+        111,
+        112,
+        113
+      ]
+    }
+  ],
+  "holes": [
+    {
+      "id": 10,
+      "color": "Purple",
+      "nodeId": 114
+    },
+    {
+      "id": 11,
+      "color": "Pink",
+      "nodeId": 106
+    }
+  ]
+}

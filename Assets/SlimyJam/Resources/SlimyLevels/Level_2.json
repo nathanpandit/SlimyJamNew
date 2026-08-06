@@ -1,0 +1,179 @@
+{
+  "levelIndex": 2,
+  "groundNodes": [
+    {
+      "id": 100,
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        101
+      ]
+    },
+    {
+      "id": 101,
+      "position": {
+        "x": 1.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        100,
+        102
+      ]
+    },
+    {
+      "id": 102,
+      "position": {
+        "x": 2.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        101,
+        103
+      ]
+    },
+    {
+      "id": 103,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        102,
+        104,
+        108
+      ]
+    },
+    {
+      "id": 104,
+      "position": {
+        "x": 4.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        103,
+        105
+      ]
+    },
+    {
+      "id": 105,
+      "position": {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        104,
+        106
+      ]
+    },
+    {
+      "id": 106,
+      "position": {
+        "x": 6.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        105,
+        107
+      ]
+    },
+    {
+      "id": 107,
+      "position": {
+        "x": 7.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "connectedNodeIds": [
+        106
+      ]
+    },
+    {
+      "id": 108,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 1.0
+      },
+      "connectedNodeIds": [
+        103,
+        109
+      ]
+    },
+    {
+      "id": 109,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 2.0
+      },
+      "connectedNodeIds": [
+        108,
+        110
+      ]
+    },
+    {
+      "id": 110,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 3.0
+      },
+      "connectedNodeIds": [
+        109,
+        111
+      ]
+    },
+    {
+      "id": 111,
+      "position": {
+        "x": 3.0,
+        "y": 0.0,
+        "z": 4.0
+      },
+      "connectedNodeIds": [
+        110
+      ]
+    }
+  ],
+  "ropes": [
+    {
+      "id": 1,
+      "color": "Green",
+      "occupiedNodeIds": [
+        100,
+        101,
+        102
+      ]
+    },
+    {
+      "id": 2,
+      "color": "Blue",
+      "occupiedNodeIds": [
+        103,
+        108,
+        109
+      ]
+    }
+  ],
+  "holes": [
+    {
+      "id": 10,
+      "color": "Green",
+      "nodeId": 107
+    },
+    {
+      "id": 11,
+      "color": "Blue",
+      "nodeId": 111
+    }
+  ]
+}
