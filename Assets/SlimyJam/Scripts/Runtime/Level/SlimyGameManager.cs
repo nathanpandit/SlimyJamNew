@@ -30,10 +30,12 @@ namespace SlimyJam.Level
     {
         private readonly List<Vector3> _pullBuffer = new List<Vector3>();
         private readonly List<Vector3> _pullSource = new List<Vector3>();
+        private readonly List<RopeModel> _containedRopeBuffer = new List<RopeModel>();
 
         private SlimyLevelContext _context;
         private readonly List<Rope> _ropes = new List<Rope>();
         private readonly List<Hole> _holes = new List<Hole>();
+        private readonly List<Wall> _walls = new List<Wall>();
 
         public static SlimyGameManager Instance { get; private set; }
 
@@ -61,7 +63,7 @@ namespace SlimyJam.Level
             Unsubscribe();
         }
 
-        public void Bind(SlimyLevelContext context, List<Rope> ropes, List<Hole> holes)
+        public void Bind(SlimyLevelContext context, List<Rope> ropes, List<Hole> holes, List<Wall> walls = null)
         {
             Unsubscribe();
 
@@ -70,16 +72,26 @@ namespace SlimyJam.Level
             _ropes.AddRange(ropes);
             _holes.Clear();
             _holes.AddRange(holes);
+            _walls.Clear();
+            if (walls != null) _walls.AddRange(walls);
 
             _context.Collection.CollectionStarted += OnCollectionStarted;
             _context.Collection.HolesRemoved += OnHolesRemoved;
             _context.Collection.LevelCompleted += OnLevelCompleted;
+            _context.Elements.RopeStateChanged += OnRopeStateChanged;
+            _context.Elements.HoleStateChanged += OnHoleStateChanged;
+            _context.Elements.WallRemoved += OnWallRemoved;
+            _context.Elements.ContainedRopesReleased += OnContainedRopesReleased;
 
             for (int i = 0; i < _ropes.Count; i++)
             {
                 _ropes[i].Movement.CollectionTriggered += OnMovementCollectionTriggered;
+                _ropes[i].Movement.StepCommitted += OnRopeStepCommitted;
                 _ropes[i].ReleaseCompleted += OnRopeReleaseCompleted;
+                _ropes[i].VisualRefreshed += OnRopeVisualRefreshed;
             }
+
+            ConfigureContainedRopeVisuals();
 
             SetState(SlimyGameState.Playing);
         }
@@ -91,13 +103,22 @@ namespace SlimyJam.Level
                 _context.Collection.CollectionStarted -= OnCollectionStarted;
                 _context.Collection.HolesRemoved -= OnHolesRemoved;
                 _context.Collection.LevelCompleted -= OnLevelCompleted;
+                if (_context.Elements != null)
+                {
+                    _context.Elements.RopeStateChanged -= OnRopeStateChanged;
+                    _context.Elements.HoleStateChanged -= OnHoleStateChanged;
+                    _context.Elements.WallRemoved -= OnWallRemoved;
+                    _context.Elements.ContainedRopesReleased -= OnContainedRopesReleased;
+                }
             }
 
             for (int i = 0; i < _ropes.Count; i++)
             {
                 if (_ropes[i] == null) continue;
                 _ropes[i].Movement.CollectionTriggered -= OnMovementCollectionTriggered;
+                _ropes[i].Movement.StepCommitted -= OnRopeStepCommitted;
                 _ropes[i].ReleaseCompleted -= OnRopeReleaseCompleted;
+                _ropes[i].VisualRefreshed -= OnRopeVisualRefreshed;
             }
         }
 
@@ -139,6 +160,57 @@ namespace SlimyJam.Level
 
             rope.BeginCollecting();
             StartCoroutine(PlayPullIntoHole(rope, hole));
+        }
+
+        private void OnRopeStepCommitted(RopeModel model)
+        {
+            _context.Elements.SyncContainedRopes(model);
+            RefreshContainedRopeVisuals(model);
+        }
+
+        private void OnRopeVisualRefreshed(Rope rope)
+        {
+            if (rope == null) return;
+            RefreshContainedRopeVisuals(rope.Model);
+        }
+
+        private void OnRopeStateChanged(RopeModel model)
+        {
+            var rope = FindRope(model);
+            if (rope == null) return;
+
+            rope.RefreshAppearance();
+            rope.RefreshVisual();
+        }
+
+        private void OnHoleStateChanged(HoleModel model)
+        {
+            var hole = FindHole(model);
+            if (hole != null) hole.RefreshVisual();
+        }
+
+        private void OnWallRemoved(WallModel model)
+        {
+            for (int i = _walls.Count - 1; i >= 0; i--)
+            {
+                var wall = _walls[i];
+                if (wall == null || wall.Model != model) continue;
+
+                _walls.RemoveAt(i);
+                wall.Remove();
+                return;
+            }
+        }
+
+        private void OnContainedRopesReleased(RopeModel outer, List<RopeModel> released)
+        {
+            for (int i = 0; i < released.Count; i++)
+            {
+                var rope = FindRope(released[i]);
+                if (rope == null) continue;
+
+                rope.ClearContainedVisualSource();
+            }
         }
 
         /// <summary>
@@ -200,6 +272,41 @@ namespace SlimyJam.Level
 
                 _holes.RemoveAt(i);
                 hole.Remove();
+            }
+        }
+
+        private Hole FindHole(HoleModel model)
+        {
+            for (int i = 0; i < _holes.Count; i++)
+            {
+                if (_holes[i] != null && _holes[i].Model == model) return _holes[i];
+            }
+
+            return null;
+        }
+
+        private void ConfigureContainedRopeVisuals()
+        {
+            for (int i = 0; i < _ropes.Count; i++)
+            {
+                var rope = _ropes[i];
+                if (rope == null) continue;
+
+                if (!_context.Elements.TryGetContainmentVisualSource(rope.Model, out var outerModel,
+                        out var unitIndices)) continue;
+
+                var outerRope = FindRope(outerModel);
+                if (outerRope != null) rope.SetContainedVisualSource(outerRope, unitIndices);
+            }
+        }
+
+        private void RefreshContainedRopeVisuals(RopeModel outer)
+        {
+            _context.Elements.GetContainedRopes(outer, _containedRopeBuffer);
+            for (int i = 0; i < _containedRopeBuffer.Count; i++)
+            {
+                var rope = FindRope(_containedRopeBuffer[i]);
+                if (rope != null) rope.RefreshVisual();
             }
         }
 

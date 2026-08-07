@@ -14,6 +14,7 @@ namespace SlimyJam.Gameplay
         private readonly NodeOccupancyMap _occupancy;
         private readonly List<HoleModel> _holes;
         private readonly List<RopeModel> _activeRopes;
+        private readonly LevelElementService _elements;
 
         /// <summary>Rope mekanik olarak board'dan kaldırıldı; görsel çekim animasyonu başlayabilir.</summary>
         public event Action<RopeModel, HoleModel> CollectionStarted;
@@ -27,12 +28,13 @@ namespace SlimyJam.Gameplay
         public IReadOnlyList<HoleModel> Holes => _holes;
 
         public CollectionService(GraphRepository graph, NodeOccupancyMap occupancy, List<HoleModel> holes,
-            List<RopeModel> activeRopes)
+            List<RopeModel> activeRopes, LevelElementService elements = null)
         {
             _graph = graph;
             _occupancy = occupancy;
             _holes = holes;
             _activeRopes = activeRopes;
+            _elements = elements;
         }
 
         public HoleModel GetHole(int holeId)
@@ -66,7 +68,7 @@ namespace SlimyJam.Gameplay
             for (int i = 0; i < _holes.Count; i++)
             {
                 var hole = _holes[i];
-                if (!hole.IsActive || hole.Color != rope.Color) continue;
+                if (!hole.IsActive || !TraversalRules.CanEnterHole(rope, hole)) continue;
 
                 if (hole.NodeId == nodeId) return hole;
 
@@ -84,6 +86,7 @@ namespace SlimyJam.Gameplay
             if (!_activeRopes.Remove(rope)) return;
 
             _occupancy.FreeAll(rope.Nodes);
+            _elements?.OnRopeCollected(rope);
             CollectionStarted?.Invoke(rope, hole);
 
             ApplyHolePersistence(rope.Color);

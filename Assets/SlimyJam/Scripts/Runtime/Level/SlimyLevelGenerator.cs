@@ -34,6 +34,7 @@ namespace SlimyJam.Level
 
         private readonly List<Rope> _ropes = new List<Rope>();
         private readonly List<Hole> _holes = new List<Hole>();
+        private readonly List<Wall> _walls = new List<Wall>();
 
         public SlimyLevelContext Context { get; private set; }
 
@@ -64,10 +65,11 @@ namespace SlimyJam.Level
 
             BuildGround(levelRoot);
             BuildHoles(levelRoot);
+            BuildWalls(levelRoot);
             BuildRopes(levelRoot);
             FrameCamera();
 
-            gameManager.Bind(Context, _ropes, _holes);
+            gameManager.Bind(Context, _ropes, _holes, _walls);
         }
 
         private void EnsureReferences()
@@ -144,6 +146,24 @@ namespace SlimyJam.Level
                 var rope = ropeObject.AddComponent<Rope>();
                 rope.Initialize(model, Context, adapter);
                 _ropes.Add(rope);
+            }
+        }
+
+        private void BuildWalls(Transform parent)
+        {
+            _walls.Clear();
+            var wallRoot = new GameObject("Walls").transform;
+            wallRoot.SetParent(parent, false);
+
+            for (int i = 0; i < Context.Walls.Count; i++)
+            {
+                var model = Context.Walls[i];
+                var wallObject = new GameObject($"Wall_{model.WallId}");
+                wallObject.transform.SetParent(wallRoot, false);
+
+                var wall = wallObject.AddComponent<Wall>();
+                wall.Initialize(model, Context.Graph.GetPosition(model.NodeId), config.groundWidth * 0.58f);
+                _walls.Add(wall);
             }
         }
 

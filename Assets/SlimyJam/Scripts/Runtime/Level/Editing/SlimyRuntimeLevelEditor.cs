@@ -17,6 +17,11 @@ namespace SlimyJam.LevelEditing
         DrawPath,
         Hole,
         Rope,
+        Key,
+        Hidden,
+        Lock,
+        Wall,
+        DoubleRope,
         Erase
     }
 
@@ -43,6 +48,9 @@ namespace SlimyJam.LevelEditing
         private const int FirstNodeId = 100;
         private const int FirstRopeId = 1;
         private const int FirstHoleId = 10;
+        private const int FirstWallId = 1000;
+        private const float RopePreviewLift = 0.08f;
+        private const float ContainedRopePreviewLift = 0.26f;
         private const float IntersectionEpsilon = 0.0001f;
 
         [Header("Level")]
@@ -52,6 +60,13 @@ namespace SlimyJam.LevelEditing
         [Header("Mode")]
         [SerializeField] private SlimyRuntimeLevelEditorMode mode = SlimyRuntimeLevelEditorMode.DrawPath;
         [SerializeField] private RopeColor paintColor = RopeColor.Green;
+
+        [Header("Elements")]
+        [SerializeField, Min(1)] private int hiddenRevealAfterCollections = 3;
+        [SerializeField, Min(1)] private int lockedHoleKeyCount = 3;
+        [SerializeField, Min(1)] private int wallRopeCollectionCount = 3;
+        [SerializeField, Tooltip("0 paints a normal rope. Choose an outer rope in Double Rope mode to paint an inner rope inside it.")]
+        private int containedRopeOuterId;
 
         [Header("Input")]
         [SerializeField] private Camera targetCamera;
@@ -117,7 +132,9 @@ namespace SlimyJam.LevelEditing
         public int EdgeCount => CountEdges(bakedData);
         public int RopeCount => bakedData?.ropes?.Count ?? 0;
         public int HoleCount => bakedData?.holes?.Count ?? 0;
+        public int WallCount => bakedData?.walls?.Count ?? 0;
         public int CurrentRopeCount => currentRopeNodeIds?.Count ?? 0;
+        public int CurrentOuterRopeId => containedRopeOuterId;
         public bool HasBakedGraph => NodeCount > 0;
         public bool GraphDirty => graphDirty;
         public SlimyLevelData BakedData => bakedData;
@@ -156,6 +173,9 @@ namespace SlimyJam.LevelEditing
             public int Id;
             public RopeColor Color;
             public Vector3 Position;
+            public bool Hidden;
+            public int RevealAfterCollections;
+            public int LockedKeyCount;
         }
 
         private sealed class RopeSnapshot
@@ -163,6 +183,17 @@ namespace SlimyJam.LevelEditing
             public int Id;
             public RopeColor Color;
             public readonly List<Vector3> Positions = new List<Vector3>();
+            public bool HasKey;
+            public bool Hidden;
+            public int RevealAfterCollections;
+            public int ContainedByRopeId;
+        }
+
+        private sealed class WallSnapshot
+        {
+            public int Id;
+            public Vector3 Position;
+            public int RopeCollectionCount;
         }
 
         private enum EditorKey
@@ -208,6 +239,10 @@ namespace SlimyJam.LevelEditing
             strokeSampleMinDistance = Mathf.Max(0.01f, strokeSampleMinDistance);
             nodePickRadius = Mathf.Max(0.01f, nodePickRadius);
             pathEraseRadius = Mathf.Max(0.01f, pathEraseRadius);
+            hiddenRevealAfterCollections = Mathf.Max(1, hiddenRevealAfterCollections);
+            lockedHoleKeyCount = Mathf.Max(1, lockedHoleKeyCount);
+            wallRopeCollectionCount = Mathf.Max(1, wallRopeCollectionCount);
+            containedRopeOuterId = Mathf.Max(0, containedRopeOuterId);
             straightenTolerance = Mathf.Max(0f, straightenTolerance);
             customAngleSnapDegrees = Mathf.Clamp(customAngleSnapDegrees, 1f, 90f);
             gridSize = Mathf.Max(0.05f, gridSize);
@@ -266,9 +301,10 @@ namespace SlimyJam.LevelEditing
 
             var holeSnapshots = new List<HoleSnapshot>();
             var ropeSnapshots = new List<RopeSnapshot>();
+            var wallSnapshots = new List<WallSnapshot>();
             if (preserveOccupantsOnBake)
             {
-                CaptureOccupants(holeSnapshots, ropeSnapshots);
+                CaptureOccupants(holeSnapshots, ropeSnapshots, wallSnapshots);
             }
 
             var segments = BuildWorkingSegments(warnings);
@@ -311,7 +347,7 @@ namespace SlimyJam.LevelEditing
 
             if (preserveOccupantsOnBake)
             {
-                RestoreOccupants(holeSnapshots, ropeSnapshots, data, warnings);
+                RestoreOccupants(holeSnapshots, ropeSnapshots, wallSnapshots, data, warnings);
             }
 
             bakedData = data;
@@ -338,7 +374,8 @@ namespace SlimyJam.LevelEditing
             {
                 id = NextRopeId(),
                 color = currentRopeColor,
-                occupiedNodeIds = new List<int>(currentRopeNodeIds)
+                occupiedNodeIds = new List<int>(currentRopeNodeIds),
+                containedByRopeId = containedRopeOuterId
             };
 
             if (!ValidateRopeChain(rope, out var error))
@@ -349,8 +386,11 @@ namespace SlimyJam.LevelEditing
 
             bakedData.ropes.Add(rope);
             currentRopeNodeIds.Clear();
+            if (rope.containedByRopeId > 0) containedRopeOuterId = 0;
 
-            SetReport($"Added rope {rope.id} ({rope.color}) with {rope.occupiedNodeIds.Count} nodes.");
+            SetReport(rope.containedByRopeId > 0
+                ? $"Added inner rope {rope.id} ({rope.color}) inside rope {rope.containedByRopeId}."
+                : $"Added rope {rope.id} ({rope.color}) with {rope.occupiedNodeIds.Count} nodes.");
             RebuildPreview();
             return true;
         }
@@ -375,8 +415,10 @@ namespace SlimyJam.LevelEditing
             EnsureCollections();
             bakedData.ropes.Clear();
             bakedData.holes.Clear();
+            bakedData.walls.Clear();
             currentRopeNodeIds.Clear();
-            SetReport("Cleared all painted ropes and holes.");
+            containedRopeOuterId = 0;
+            SetReport("Cleared all painted ropes, holes, and walls.");
             RebuildPreview();
         }
 
@@ -389,7 +431,8 @@ namespace SlimyJam.LevelEditing
             currentRopeNodeIds.Clear();
             bakedData = new SlimyLevelData { levelIndex = levelIndex };
             graphDirty = false;
-            SetReport("Cleared strokes, baked graph, ropes, and holes.");
+            containedRopeOuterId = 0;
+            SetReport("Cleared strokes, baked graph, ropes, holes, and walls.");
             RebuildPreview();
         }
 
@@ -483,6 +526,7 @@ namespace SlimyJam.LevelEditing
             DrawStrokePreview();
             DrawGraphPreview();
             DrawHolePreview();
+            DrawWallPreview();
             DrawRopePreview();
         }
 
@@ -1022,6 +1066,21 @@ namespace SlimyJam.LevelEditing
                 case SlimyRuntimeLevelEditorMode.Rope:
                     PaintRopeNode(nodeId);
                     break;
+                case SlimyRuntimeLevelEditorMode.Key:
+                    ToggleKey(nodeId);
+                    break;
+                case SlimyRuntimeLevelEditorMode.Hidden:
+                    ToggleHidden(nodeId);
+                    break;
+                case SlimyRuntimeLevelEditorMode.Lock:
+                    ToggleLock(nodeId);
+                    break;
+                case SlimyRuntimeLevelEditorMode.Wall:
+                    PaintWall(nodeId);
+                    break;
+                case SlimyRuntimeLevelEditorMode.DoubleRope:
+                    SelectOuterRope(nodeId);
+                    break;
                 case SlimyRuntimeLevelEditorMode.Erase:
                     EraseNodeOccupant(nodeId);
                     break;
@@ -1030,6 +1089,12 @@ namespace SlimyJam.LevelEditing
 
         private void PaintHole(int nodeId)
         {
+            if (FindWallAtNode(nodeId) >= 0)
+            {
+                SetReport($"Node {nodeId} has a wall. Remove it before painting a hole there.");
+                return;
+            }
+
             if (FindRopeContainingNode(nodeId, out var ropeIndex))
             {
                 SetReport($"Node {nodeId} is already occupied by rope {bakedData.ropes[ropeIndex].id}.");
@@ -1075,10 +1140,33 @@ namespace SlimyJam.LevelEditing
                 return;
             }
 
+            if (FindWallAtNode(nodeId) >= 0)
+            {
+                SetReport($"Node {nodeId} has a wall. Remove it before painting a rope there.");
+                return;
+            }
+
+            var containerIndex = GetSelectedOuterRopeIndex();
+            var paintingContained = containerIndex >= 0;
+            if (containedRopeOuterId > 0 && !paintingContained)
+            {
+                SetReport($"Outer rope {containedRopeOuterId} does not exist. Choose another outer rope.");
+                return;
+            }
+
+            if (paintingContained && !bakedData.ropes[containerIndex].occupiedNodeIds.Contains(nodeId))
+            {
+                SetReport($"Inner rope nodes must be inside outer rope {containedRopeOuterId}.");
+                return;
+            }
+
             if (FindRopeContainingNode(nodeId, out var ropeIndex))
             {
-                SetReport($"Node {nodeId} is already occupied by rope {bakedData.ropes[ropeIndex].id}.");
-                return;
+                if (!paintingContained || ropeIndex != containerIndex)
+                {
+                    SetReport($"Node {nodeId} is already occupied by rope {bakedData.ropes[ropeIndex].id}.");
+                    return;
+                }
             }
 
             var existingSelectionIndex = currentRopeNodeIds.IndexOf(nodeId);
@@ -1093,9 +1181,17 @@ namespace SlimyJam.LevelEditing
 
             if (currentRopeNodeIds.Count == 0)
             {
+                if (paintingContained && HasInnerRope(containedRopeOuterId))
+                {
+                    SetReport($"Outer rope {containedRopeOuterId} already contains an inner rope.");
+                    return;
+                }
+
                 currentRopeColor = paintColor;
                 currentRopeNodeIds.Add(nodeId);
-                SetReport($"Started {currentRopeColor} rope at node {nodeId}.");
+                SetReport(paintingContained
+                    ? $"Started inner {currentRopeColor} rope inside rope {containedRopeOuterId} at node {nodeId}."
+                    : $"Started {currentRopeColor} rope at node {nodeId}.");
                 RebuildPreview();
                 return;
             }
@@ -1112,6 +1208,168 @@ namespace SlimyJam.LevelEditing
             RebuildPreview();
         }
 
+        private void ToggleKey(int nodeId)
+        {
+            if (!FindRopeContainingNode(nodeId, out var ropeIndex, true))
+            {
+                SetReport($"Node {nodeId} has no rope to toggle a key on.");
+                return;
+            }
+
+            var rope = bakedData.ropes[ropeIndex];
+            rope.hasKey = !rope.hasKey;
+            SetReport(rope.hasKey ? $"Rope {rope.id} now has a key." : $"Removed key from rope {rope.id}.");
+            RebuildPreview();
+        }
+
+        private void ToggleHidden(int nodeId)
+        {
+            if (FindRopeContainingNode(nodeId, out var ropeIndex, true))
+            {
+                var rope = bakedData.ropes[ropeIndex];
+                if (rope.hidden && rope.revealAfterCollections == hiddenRevealAfterCollections)
+                {
+                    rope.hidden = false;
+                    rope.revealAfterCollections = 0;
+                    SetReport($"Rope {rope.id} is no longer hidden.");
+                }
+                else
+                {
+                    rope.hidden = true;
+                    rope.revealAfterCollections = hiddenRevealAfterCollections;
+                    SetReport($"Rope {rope.id} will reveal after {hiddenRevealAfterCollections} collected rope(s).");
+                }
+
+                RebuildPreview();
+                return;
+            }
+
+            var holeIndex = FindHoleAtNode(nodeId);
+            if (holeIndex < 0)
+            {
+                SetReport($"Node {nodeId} has no rope or hole to toggle hidden state on.");
+                return;
+            }
+
+            var hole = bakedData.holes[holeIndex];
+            if (hole.hidden && hole.revealAfterCollections == hiddenRevealAfterCollections)
+            {
+                hole.hidden = false;
+                hole.revealAfterCollections = 0;
+                SetReport($"Hole {hole.id} is no longer hidden.");
+            }
+            else
+            {
+                hole.hidden = true;
+                hole.revealAfterCollections = hiddenRevealAfterCollections;
+                SetReport($"Hole {hole.id} will reveal after {hiddenRevealAfterCollections} collected rope(s).");
+            }
+
+            RebuildPreview();
+        }
+
+        private void ToggleLock(int nodeId)
+        {
+            var holeIndex = FindHoleAtNode(nodeId);
+            if (holeIndex < 0)
+            {
+                SetReport($"Node {nodeId} has no hole to lock.");
+                return;
+            }
+
+            var hole = bakedData.holes[holeIndex];
+            if (hole.lockedKeyCount == lockedHoleKeyCount)
+            {
+                hole.lockedKeyCount = 0;
+                SetReport($"Hole {hole.id} is no longer locked.");
+            }
+            else
+            {
+                hole.lockedKeyCount = lockedHoleKeyCount;
+                SetReport($"Hole {hole.id} now requires {lockedHoleKeyCount} key(s).");
+            }
+
+            RebuildPreview();
+        }
+
+        private void PaintWall(int nodeId)
+        {
+            var existingIndex = FindWallAtNode(nodeId);
+            if (existingIndex >= 0)
+            {
+                var wall = bakedData.walls[existingIndex];
+                if (wall.ropeCollectionCount == wallRopeCollectionCount)
+                {
+                    bakedData.walls.RemoveAt(existingIndex);
+                    SetReport($"Removed wall {wall.id} from node {nodeId}.");
+                }
+                else
+                {
+                    wall.ropeCollectionCount = wallRopeCollectionCount;
+                    SetReport($"Wall {wall.id} now disappears after {wallRopeCollectionCount} collected rope(s).");
+                }
+
+                RebuildPreview();
+                return;
+            }
+
+            if (FindHoleAtNode(nodeId) >= 0)
+            {
+                SetReport($"Node {nodeId} has a hole. Remove it before painting a wall there.");
+                return;
+            }
+
+            if (currentRopeNodeIds.Contains(nodeId))
+            {
+                SetReport($"Node {nodeId} is part of the unfinished rope. Finish or cancel that rope first.");
+                return;
+            }
+
+            if (FindRopeContainingNode(nodeId, out var ropeIndex, true))
+            {
+                SetReport($"Node {nodeId} is occupied by rope {bakedData.ropes[ropeIndex].id}.");
+                return;
+            }
+
+            var wallData = new WallData
+            {
+                id = NextWallId(),
+                nodeId = nodeId,
+                ropeCollectionCount = wallRopeCollectionCount
+            };
+            bakedData.walls.Add(wallData);
+            SetReport($"Added wall {wallData.id} on node {nodeId}.");
+            RebuildPreview();
+        }
+
+        private void SelectOuterRope(int nodeId)
+        {
+            if (!FindRopeContainingNode(nodeId, out var ropeIndex))
+            {
+                SetReport($"Node {nodeId} has no rope to use as an outer rope.");
+                return;
+            }
+
+            var rope = bakedData.ropes[ropeIndex];
+            if (rope.containedByRopeId > 0)
+            {
+                SetReport($"Rope {rope.id} is already an inner rope. Choose an outer rope.");
+                return;
+            }
+
+            if (currentRopeNodeIds.Count > 0)
+            {
+                SetReport("Finish or cancel the current rope before choosing an outer rope.");
+                return;
+            }
+
+            containedRopeOuterId = containedRopeOuterId == rope.id ? 0 : rope.id;
+            SetReport(containedRopeOuterId > 0
+                ? $"Selected rope {containedRopeOuterId} as the outer rope. Switch to Rope mode and paint the inner rope inside it."
+                : $"Cleared outer rope selection.");
+            RebuildPreview();
+        }
+
         private void EraseNodeOccupant(int nodeId)
         {
             var holeIndex = FindHoleAtNode(nodeId);
@@ -1124,16 +1382,26 @@ namespace SlimyJam.LevelEditing
                 return;
             }
 
-            if (FindRopeContainingNode(nodeId, out var ropeIndex))
+            if (FindRopeContainingNode(nodeId, out var ropeIndex, true))
             {
                 var id = bakedData.ropes[ropeIndex].id;
-                bakedData.ropes.RemoveAt(ropeIndex);
+                RemoveRopeAt(ropeIndex);
                 SetReport($"Removed rope {id}.");
                 RebuildPreview();
                 return;
             }
 
-            SetReport($"Node {nodeId} has no painted rope or hole to erase.");
+            var wallIndex = FindWallAtNode(nodeId);
+            if (wallIndex >= 0)
+            {
+                var id = bakedData.walls[wallIndex].id;
+                bakedData.walls.RemoveAt(wallIndex);
+                SetReport($"Removed wall {id} from node {nodeId}.");
+                RebuildPreview();
+                return;
+            }
+
+            SetReport($"Node {nodeId} has no painted rope, hole, or wall to erase.");
         }
 
         private List<WorkingSegment> BuildWorkingSegments(List<string> warnings)
@@ -1261,7 +1529,8 @@ namespace SlimyJam.LevelEditing
             }
         }
 
-        private void CaptureOccupants(List<HoleSnapshot> holeSnapshots, List<RopeSnapshot> ropeSnapshots)
+        private void CaptureOccupants(List<HoleSnapshot> holeSnapshots, List<RopeSnapshot> ropeSnapshots,
+            List<WallSnapshot> wallSnapshots)
         {
             if (bakedData == null || bakedData.groundNodes == null) return;
 
@@ -1273,7 +1542,30 @@ namespace SlimyJam.LevelEditing
                 {
                     var hole = bakedData.holes[i];
                     if (!positions.TryGetValue(hole.nodeId, out var position)) continue;
-                    holeSnapshots.Add(new HoleSnapshot { Id = hole.id, Color = hole.color, Position = position });
+                    holeSnapshots.Add(new HoleSnapshot
+                    {
+                        Id = hole.id,
+                        Color = hole.color,
+                        Position = position,
+                        Hidden = hole.hidden,
+                        RevealAfterCollections = hole.revealAfterCollections,
+                        LockedKeyCount = hole.lockedKeyCount
+                    });
+                }
+            }
+
+            if (bakedData.walls != null)
+            {
+                for (int i = 0; i < bakedData.walls.Count; i++)
+                {
+                    var wall = bakedData.walls[i];
+                    if (!positions.TryGetValue(wall.nodeId, out var position)) continue;
+                    wallSnapshots.Add(new WallSnapshot
+                    {
+                        Id = wall.id,
+                        Position = position,
+                        RopeCollectionCount = wall.ropeCollectionCount
+                    });
                 }
             }
 
@@ -1282,7 +1574,15 @@ namespace SlimyJam.LevelEditing
             for (int i = 0; i < bakedData.ropes.Count; i++)
             {
                 var rope = bakedData.ropes[i];
-                var snapshot = new RopeSnapshot { Id = rope.id, Color = rope.color };
+                var snapshot = new RopeSnapshot
+                {
+                    Id = rope.id,
+                    Color = rope.color,
+                    HasKey = rope.hasKey,
+                    Hidden = rope.hidden,
+                    RevealAfterCollections = rope.revealAfterCollections,
+                    ContainedByRopeId = rope.containedByRopeId
+                };
                 var valid = true;
 
                 for (int p = 0; p < rope.occupiedNodeIds.Count; p++)
@@ -1301,7 +1601,7 @@ namespace SlimyJam.LevelEditing
         }
 
         private void RestoreOccupants(List<HoleSnapshot> holeSnapshots, List<RopeSnapshot> ropeSnapshots,
-            SlimyLevelData data, List<string> warnings)
+            List<WallSnapshot> wallSnapshots, SlimyLevelData data, List<string> warnings)
         {
             for (int i = 0; i < holeSnapshots.Count; i++)
             {
@@ -1313,13 +1613,47 @@ namespace SlimyJam.LevelEditing
                     continue;
                 }
 
-                data.holes.Add(new HoleData { id = snapshot.Id, color = snapshot.Color, nodeId = nodeId });
+                data.holes.Add(new HoleData
+                {
+                    id = snapshot.Id,
+                    color = snapshot.Color,
+                    nodeId = nodeId,
+                    hidden = snapshot.Hidden,
+                    revealAfterCollections = snapshot.RevealAfterCollections,
+                    lockedKeyCount = snapshot.LockedKeyCount
+                });
+            }
+
+            for (int i = 0; i < wallSnapshots.Count; i++)
+            {
+                var snapshot = wallSnapshots[i];
+                var nodeId = FindNearestNodeId(data, snapshot.Position, occupantSnapDistance);
+                if (nodeId < 0)
+                {
+                    warnings.Add($"Wall {snapshot.Id} could not be snapped to the rebaked graph; skipped.");
+                    continue;
+                }
+
+                data.walls.Add(new WallData
+                {
+                    id = snapshot.Id,
+                    nodeId = nodeId,
+                    ropeCollectionCount = snapshot.RopeCollectionCount
+                });
             }
 
             for (int i = 0; i < ropeSnapshots.Count; i++)
             {
                 var snapshot = ropeSnapshots[i];
-                var rope = new RopeData { id = snapshot.Id, color = snapshot.Color };
+                var rope = new RopeData
+                {
+                    id = snapshot.Id,
+                    color = snapshot.Color,
+                    hasKey = snapshot.HasKey,
+                    hidden = snapshot.Hidden,
+                    revealAfterCollections = snapshot.RevealAfterCollections,
+                    containedByRopeId = snapshot.ContainedByRopeId
+                };
                 var valid = true;
 
                 for (int p = 0; p < snapshot.Positions.Count; p++)
@@ -1487,6 +1821,14 @@ namespace SlimyJam.LevelEditing
                 for (int i = 0; i < data.holes.Count; i++)
                 {
                     if (idMap.TryGetValue(data.holes[i].nodeId, out var mapped)) data.holes[i].nodeId = mapped;
+                }
+            }
+
+            if (data.walls != null)
+            {
+                for (int i = 0; i < data.walls.Count; i++)
+                {
+                    if (idMap.TryGetValue(data.walls[i].nodeId, out var mapped)) data.walls[i].nodeId = mapped;
                 }
             }
 
@@ -1667,6 +2009,15 @@ namespace SlimyJam.LevelEditing
             }
 
             var seen = new HashSet<int>();
+            var outerIndex = FindRopeById(rope.containedByRopeId);
+            var isContained = rope.containedByRopeId > 0;
+
+            if (isContained && outerIndex < 0)
+            {
+                error = $"outer rope {rope.containedByRopeId} does not exist.";
+                return false;
+            }
+
             for (int i = 0; i < rope.occupiedNodeIds.Count; i++)
             {
                 var nodeId = rope.occupiedNodeIds[i];
@@ -1682,7 +2033,20 @@ namespace SlimyJam.LevelEditing
                     return false;
                 }
 
-                if (FindRopeContainingNode(nodeId, out var ropeIndex))
+                if (FindWallAtNode(nodeId) >= 0)
+                {
+                    error = $"node {nodeId} contains a wall.";
+                    return false;
+                }
+
+                if (isContained && !bakedData.ropes[outerIndex].occupiedNodeIds.Contains(nodeId))
+                {
+                    error = $"node {nodeId} is outside outer rope {rope.containedByRopeId}.";
+                    return false;
+                }
+
+                if (FindRopeContainingNode(nodeId, out var ropeIndex) &&
+                    (!isContained || ropeIndex != outerIndex))
                 {
                     error = $"node {nodeId} is already occupied by rope {bakedData.ropes[ropeIndex].id}.";
                     return false;
@@ -2088,8 +2452,21 @@ namespace SlimyJam.LevelEditing
             return -1;
         }
 
-        private bool FindRopeContainingNode(int nodeId, out int ropeIndex)
+        private bool FindRopeContainingNode(int nodeId, out int ropeIndex, bool preferContained = false)
         {
+            if (preferContained)
+            {
+                for (int i = 0; i < bakedData.ropes.Count; i++)
+                {
+                    var rope = bakedData.ropes[i];
+                    if (rope.containedByRopeId <= 0 || rope.occupiedNodeIds == null) continue;
+                    if (!rope.occupiedNodeIds.Contains(nodeId)) continue;
+
+                    ropeIndex = i;
+                    return true;
+                }
+            }
+
             for (int i = 0; i < bakedData.ropes.Count; i++)
             {
                 var nodes = bakedData.ropes[i].occupiedNodeIds;
@@ -2103,6 +2480,60 @@ namespace SlimyJam.LevelEditing
 
             ropeIndex = -1;
             return false;
+        }
+
+        private int FindWallAtNode(int nodeId)
+        {
+            for (int i = 0; i < bakedData.walls.Count; i++)
+            {
+                if (bakedData.walls[i].nodeId == nodeId) return i;
+            }
+
+            return -1;
+        }
+
+        private int GetSelectedOuterRopeIndex()
+        {
+            if (containedRopeOuterId <= 0) return -1;
+
+            return FindRopeById(containedRopeOuterId);
+        }
+
+        private int FindRopeById(int ropeId)
+        {
+            if (ropeId <= 0) return -1;
+
+            for (int i = 0; i < bakedData.ropes.Count; i++)
+            {
+                if (bakedData.ropes[i].id == ropeId) return i;
+            }
+
+            return -1;
+        }
+
+        private bool HasInnerRope(int outerRopeId)
+        {
+            for (int i = 0; i < bakedData.ropes.Count; i++)
+            {
+                if (bakedData.ropes[i].containedByRopeId == outerRopeId) return true;
+            }
+
+            return false;
+        }
+
+        private void RemoveRopeAt(int ropeIndex)
+        {
+            if (ropeIndex < 0 || ropeIndex >= bakedData.ropes.Count) return;
+
+            var removedId = bakedData.ropes[ropeIndex].id;
+            bakedData.ropes.RemoveAt(ropeIndex);
+
+            for (int i = bakedData.ropes.Count - 1; i >= 0; i--)
+            {
+                if (bakedData.ropes[i].containedByRopeId == removedId) bakedData.ropes.RemoveAt(i);
+            }
+
+            if (containedRopeOuterId == removedId) containedRopeOuterId = 0;
         }
 
         private bool AreConnected(int a, int b)
@@ -2147,6 +2578,13 @@ namespace SlimyJam.LevelEditing
         {
             var id = FirstHoleId;
             for (int i = 0; i < bakedData.holes.Count; i++) id = Mathf.Max(id, bakedData.holes[i].id + 1);
+            return id;
+        }
+
+        private int NextWallId()
+        {
+            var id = FirstWallId;
+            for (int i = 0; i < bakedData.walls.Count; i++) id = Mathf.Max(id, bakedData.walls[i].id + 1);
             return id;
         }
 
@@ -2241,8 +2679,26 @@ namespace SlimyJam.LevelEditing
             {
                 var hole = bakedData.holes[i];
                 if (!TryGetNodePosition(hole.nodeId, out var position)) continue;
+                var color = hole.hidden ? SlimyPalette.Hidden : SlimyPalette.Get(hole.color);
                 CreateMarker($"Hole_{hole.id}_{hole.color}", position + Vector3.up * 0.04f, holePreviewSize,
-                    SlimyPalette.Get(hole.color));
+                    color);
+
+                if (hole.lockedKeyCount > 0)
+                {
+                    CreateMarker($"Hole_{hole.id}_Lock", position + Vector3.up * 0.16f, holePreviewSize * 0.45f,
+                        SlimyPalette.Lock);
+                }
+            }
+        }
+
+        private void DrawWallPreview()
+        {
+            for (int i = 0; i < bakedData.walls.Count; i++)
+            {
+                var wall = bakedData.walls[i];
+                if (!TryGetNodePosition(wall.nodeId, out var position)) continue;
+                CreateMarker($"Wall_{wall.id}", position + Vector3.up * 0.12f, nodePreviewSize * 1.5f,
+                    SlimyPalette.Wall);
             }
         }
 
@@ -2251,30 +2707,39 @@ namespace SlimyJam.LevelEditing
             for (int i = 0; i < bakedData.ropes.Count; i++)
             {
                 var rope = bakedData.ropes[i];
-                var points = GetRopePoints(rope.occupiedNodeIds);
-                CreateLine($"Rope_{rope.id}_{rope.color}", points, SlimyPalette.Get(rope.color), ropePreviewWidth);
+                var points = GetRopePoints(rope.occupiedNodeIds,
+                    rope.containedByRopeId > 0 ? ContainedRopePreviewLift : RopePreviewLift);
+                var color = rope.hidden ? SlimyPalette.Hidden : SlimyPalette.Get(rope.color);
+                var width = rope.containedByRopeId > 0 ? ropePreviewWidth * 0.55f : ropePreviewWidth;
+                CreateLine($"Rope_{rope.id}_{rope.color}", points, color, width);
                 if (points.Count > 0)
                 {
                     CreateMarker($"Rope_{rope.id}_Head", points[0] + Vector3.up * 0.08f, nodePreviewSize * 1.2f,
-                        Color.white);
+                        rope.id == containedRopeOuterId ? SlimyPalette.Key : Color.white);
+                }
+
+                if (rope.hasKey && points.Count > 0)
+                {
+                    CreateMarker($"Rope_{rope.id}_Key", points[points.Count / 2] + Vector3.up * 0.2f,
+                        nodePreviewSize * 1.2f, SlimyPalette.Key);
                 }
             }
 
             if (currentRopeNodeIds.Count > 0)
             {
-                var points = GetRopePoints(currentRopeNodeIds);
+                var points = GetRopePoints(currentRopeNodeIds, RopePreviewLift);
                 CreateLine("Rope_Current", points, SlimyPalette.Get(currentRopeColor), ropePreviewWidth * 0.85f);
             }
         }
 
-        private List<Vector3> GetRopePoints(IReadOnlyList<int> nodeIds)
+        private List<Vector3> GetRopePoints(IReadOnlyList<int> nodeIds, float lift)
         {
             var points = new List<Vector3>();
             if (nodeIds == null) return points;
 
             for (int i = 0; i < nodeIds.Count; i++)
             {
-                if (TryGetNodePosition(nodeIds[i], out var position)) points.Add(position + Vector3.up * 0.08f);
+                if (TryGetNodePosition(nodeIds[i], out var position)) points.Add(position + Vector3.up * lift);
             }
 
             return points;
@@ -2367,6 +2832,7 @@ namespace SlimyJam.LevelEditing
             if (bakedData.groundNodes == null) bakedData.groundNodes = new List<GroundNodeData>();
             if (bakedData.ropes == null) bakedData.ropes = new List<RopeData>();
             if (bakedData.holes == null) bakedData.holes = new List<HoleData>();
+            if (bakedData.walls == null) bakedData.walls = new List<WallData>();
         }
 
         private void SetReport(string report)
@@ -2378,7 +2844,8 @@ namespace SlimyJam.LevelEditing
         {
             var builder = new StringBuilder();
             builder.AppendLine($"Baked graph for Level_{levelIndex}.");
-            builder.AppendLine($"nodes: {NodeCount}, edges: {EdgeCount}, ropes: {RopeCount}, holes: {HoleCount}");
+            builder.AppendLine(
+                $"nodes: {NodeCount}, edges: {EdgeCount}, ropes: {RopeCount}, holes: {HoleCount}, walls: {WallCount}");
 
             for (int i = 0; i < warnings.Count; i++)
             {
@@ -2395,7 +2862,7 @@ namespace SlimyJam.LevelEditing
             var builder = new StringBuilder();
             builder.AppendLine(errors.Count == 0 ? "Level editor data is valid." : "Level editor data has errors.");
             builder.AppendLine(
-                $"nodes: {data.groundNodes.Count}, edges: {CountEdges(data)}, ropes: {data.ropes.Count}, holes: {data.holes.Count}");
+                $"nodes: {data.groundNodes.Count}, edges: {CountEdges(data)}, ropes: {data.ropes.Count}, holes: {data.holes.Count}, walls: {data.walls?.Count ?? 0}");
 
             for (int i = 0; i < errors.Count; i++)
             {
@@ -2793,6 +3260,10 @@ namespace SlimyJam.LevelEditing
                     {
                         id = rope.id,
                         color = rope.color,
+                        hasKey = rope.hasKey,
+                        hidden = rope.hidden,
+                        revealAfterCollections = rope.revealAfterCollections,
+                        containedByRopeId = rope.containedByRopeId,
                         occupiedNodeIds = rope.occupiedNodeIds != null
                             ? new List<int>(rope.occupiedNodeIds)
                             : new List<int>()
@@ -2809,7 +3280,24 @@ namespace SlimyJam.LevelEditing
                     {
                         id = hole.id,
                         color = hole.color,
-                        nodeId = hole.nodeId
+                        nodeId = hole.nodeId,
+                        hidden = hole.hidden,
+                        revealAfterCollections = hole.revealAfterCollections,
+                        lockedKeyCount = hole.lockedKeyCount
+                    });
+                }
+            }
+
+            if (source.walls != null)
+            {
+                for (int i = 0; i < source.walls.Count; i++)
+                {
+                    var wall = source.walls[i];
+                    clone.walls.Add(new WallData
+                    {
+                        id = wall.id,
+                        nodeId = wall.nodeId,
+                        ropeCollectionCount = wall.ropeCollectionCount
                     });
                 }
             }

@@ -101,7 +101,9 @@ namespace SlimyJam.Pathfinding
             switch (occupant)
             {
                 case IHoleOccupant hole:
-                    return hole.Color == rope.Color;
+                    return TraversalRules.CanEnterHole(rope, hole);
+                case IWallOccupant:
+                    return false;
                 case IRopeOccupant otherRope when otherRope.RopeId != rope.RopeId:
                     return false;
             }

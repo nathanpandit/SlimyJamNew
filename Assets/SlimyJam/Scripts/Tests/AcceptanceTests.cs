@@ -438,6 +438,114 @@ namespace SlimyJam.Tests
             Assert.AreEqual(0, context.ActiveRopes.Count);
         }
 
+        // --------------------------------------------------------------- ELEMENTS
+
+        [Test]
+        public void ELEM_01_HiddenRopeAndHoleBlockUntilCollectionReveal()
+        {
+            var builder = new TestLevelBuilder()
+                .Line(0, 0, 5, 0)
+                .Line(10, 0, 12, 0);
+            builder.Rope(1, RopeColor.Green, C(0, 0), C(1, 0));
+            builder.Hole(10, RopeColor.Green, C(2, 0));
+            builder.Rope(2, RopeColor.Blue, C(10, 0), C(11, 0));
+            builder.Hole(11, RopeColor.Blue, C(12, 0));
+            var data = builder.BuildData();
+            data.ropes[0].hidden = true;
+            data.ropes[0].revealAfterCollections = 1;
+            data.holes[0].hidden = true;
+            data.holes[0].revealAfterCollections = 1;
+
+            var context = SlimyLevelContext.Build(data, CreateConfig());
+            var green = FindRope(context, 1);
+
+            Assert.AreEqual(NodeTraversal.BlockedByHole,
+                TraversalRules.Evaluate(context.Occupancy, builder.NodeId(2, 0), green));
+
+            context.Collection.BeginCollection(FindRope(context, 2), context.Collection.GetHole(11));
+
+            Assert.IsTrue(green.IsColorRevealed);
+            Assert.IsTrue(context.Collection.GetHole(10).IsColorRevealed);
+            Assert.AreEqual(NodeTraversal.MatchingHole,
+                TraversalRules.Evaluate(context.Occupancy, builder.NodeId(2, 0), green));
+        }
+
+        [Test]
+        public void ELEM_02_KeyedRopeDecrementsEveryLockedHole()
+        {
+            var builder = new TestLevelBuilder()
+                .Line(0, 0, 3, 0)
+                .Line(10, 0, 12, 0)
+                .Line(20, 0, 22, 0);
+            builder.Rope(1, RopeColor.Green, C(0, 0), C(1, 0));
+            builder.Hole(10, RopeColor.Green, C(3, 0));
+            builder.Rope(2, RopeColor.Blue, C(10, 0), C(11, 0));
+            builder.Hole(11, RopeColor.Blue, C(12, 0));
+            builder.Rope(3, RopeColor.Yellow, C(20, 0), C(21, 0));
+            builder.Hole(12, RopeColor.Yellow, C(22, 0));
+            var data = builder.BuildData();
+            data.ropes[0].hasKey = true;
+            data.holes[1].lockedKeyCount = 2;
+            data.holes[2].lockedKeyCount = 1;
+
+            var context = SlimyLevelContext.Build(data, CreateConfig());
+
+            context.Collection.BeginCollection(FindRope(context, 1), context.Collection.GetHole(10));
+
+            Assert.AreEqual(1, context.Collection.GetHole(11).LockKeysRemaining);
+            Assert.IsTrue(context.Collection.GetHole(12).IsUnlocked);
+        }
+
+        [Test]
+        public void ELEM_03_WallBlocksNodeUntilEnoughRopesCollected()
+        {
+            var builder = new TestLevelBuilder()
+                .Line(0, 0, 4, 0)
+                .Line(10, 0, 12, 0);
+            builder.Rope(1, RopeColor.Green, C(0, 0), C(1, 0));
+            builder.Hole(10, RopeColor.Green, C(4, 0));
+            builder.Wall(1000, C(2, 0), 1);
+            builder.Rope(2, RopeColor.Blue, C(10, 0), C(11, 0));
+            builder.Hole(11, RopeColor.Blue, C(12, 0));
+
+            var context = builder.BuildContext();
+            var green = FindRope(context, 1);
+
+            Assert.AreEqual(NodeTraversal.BlockedByWall,
+                TraversalRules.Evaluate(context.Occupancy, builder.NodeId(2, 0), green));
+
+            context.Collection.BeginCollection(FindRope(context, 2), context.Collection.GetHole(11));
+
+            Assert.IsTrue(context.Occupancy.IsFree(builder.NodeId(2, 0)));
+            Assert.AreEqual(0, context.Elements.Walls.Count);
+        }
+
+        [Test]
+        public void ELEM_04_ContainedRopeReleasesWhenOuterIsCollected()
+        {
+            var builder = new TestLevelBuilder().Line(0, 0, 4, 0);
+            builder.Rope(1, RopeColor.Green, C(0, 0), C(1, 0), C(2, 0));
+            builder.Rope(2, RopeColor.Blue, C(1, 0), C(2, 0));
+            builder.Hole(10, RopeColor.Green, C(4, 0));
+            var data = builder.BuildData();
+            data.ropes[1].containedByRopeId = 1;
+
+            var context = SlimyLevelContext.Build(data, CreateConfig());
+            var containedBefore = (IRopeOccupant)context.Occupancy.GetOccupant(builder.NodeId(1, 0));
+            Assert.AreEqual(1, containedBefore.RopeId);
+
+            var completed = false;
+            context.Collection.LevelCompleted += () => completed = true;
+            context.Collection.BeginCollection(FindRope(context, 1), context.Collection.GetHole(10));
+
+            var inner = FindRope(context, 2);
+            var containedAfter = (IRopeOccupant)context.Occupancy.GetOccupant(builder.NodeId(1, 0));
+            Assert.IsFalse(inner.IsContained);
+            Assert.AreEqual(2, containedAfter.RopeId);
+            Assert.AreEqual(1, context.ActiveRopes.Count);
+            Assert.IsFalse(completed);
+        }
+
         // --------------------------------------------------------------- LOAD
 
         [Test]

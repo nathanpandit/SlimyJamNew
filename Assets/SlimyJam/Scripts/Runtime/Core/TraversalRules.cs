@@ -13,6 +13,8 @@ namespace SlimyJam.Core
         /// <summary>Yanlış renkli hole - blocked.</summary>
         BlockedByHole,
 
+        BlockedByWall,
+
         /// <summary>Kendi gövdesi - normal hareket için blocked, yalnızca adjacent reverse kuralıyla kullanılır.</summary>
         OwnBody,
 
@@ -30,7 +32,9 @@ namespace SlimyJam.Core
             switch (occupant)
             {
                 case IHoleOccupant hole:
-                    return hole.Color == rope.Color ? NodeTraversal.MatchingHole : NodeTraversal.BlockedByHole;
+                    return CanEnterHole(rope, hole) ? NodeTraversal.MatchingHole : NodeTraversal.BlockedByHole;
+                case IWallOccupant:
+                    return NodeTraversal.BlockedByWall;
                 case IRopeOccupant otherRope:
                     return otherRope.RopeId == rope.RopeId ? NodeTraversal.OwnBody : NodeTraversal.BlockedByOtherRope;
                 default:
@@ -45,6 +49,16 @@ namespace SlimyJam.Core
         {
             var traversal = Evaluate(occupancy, nodeId, rope);
             return traversal == NodeTraversal.Free || traversal == NodeTraversal.MatchingHole;
+        }
+
+        public static bool CanEnterHole(RopeModel rope, IHoleOccupant hole)
+        {
+            return rope != null &&
+                   hole != null &&
+                   rope.IsColorRevealed &&
+                   hole.IsColorRevealed &&
+                   hole.IsUnlocked &&
+                   hole.Color == rope.Color;
         }
     }
 }

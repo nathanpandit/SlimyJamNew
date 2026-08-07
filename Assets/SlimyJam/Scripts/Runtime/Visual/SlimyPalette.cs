@@ -21,6 +21,11 @@ namespace SlimyJam.Visual
 
         private static readonly Dictionary<Color, Material> MaterialCache = new Dictionary<Color, Material>();
 
+        public static readonly Color Hidden = new Color(0.55f, 0.58f, 0.62f);
+        public static readonly Color Key = new Color(1f, 0.78f, 0.18f);
+        public static readonly Color Lock = new Color(0.08f, 0.09f, 0.11f);
+        public static readonly Color Wall = new Color(0.12f, 0.14f, 0.17f);
+
         public static Color Get(RopeColor color)
         {
             return Colors.TryGetValue(color, out var value) ? value : Color.white;

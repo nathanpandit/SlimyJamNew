@@ -15,6 +15,7 @@ namespace SlimyJam.Data
         public List<GroundNodeData> groundNodes = new List<GroundNodeData>();
         public List<RopeData> ropes = new List<RopeData>();
         public List<HoleData> holes = new List<HoleData>();
+        public List<WallData> walls = new List<WallData>();
     }
 
     [Serializable]
@@ -31,6 +32,10 @@ namespace SlimyJam.Data
         public int id;
         public RopeColor color;
         public List<int> occupiedNodeIds = new List<int>();
+        public bool hasKey;
+        public bool hidden;
+        public int revealAfterCollections;
+        public int containedByRopeId;
     }
 
     [Serializable]
@@ -39,6 +44,17 @@ namespace SlimyJam.Data
         public int id;
         public RopeColor color;
         public int nodeId;
+        public bool hidden;
+        public int revealAfterCollections;
+        public int lockedKeyCount;
+    }
+
+    [Serializable]
+    public sealed class WallData
+    {
+        public int id;
+        public int nodeId;
+        public int ropeCollectionCount;
     }
 
     [Serializable]

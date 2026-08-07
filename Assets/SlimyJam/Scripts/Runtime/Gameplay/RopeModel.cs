@@ -20,14 +20,25 @@ namespace SlimyJam.Gameplay
 
         public int RopeId { get; }
         public RopeColor Color { get; }
+        public bool HasKey { get; }
+        public bool IsHidden { get; }
+        public int RevealCollectionsRemaining { get; private set; }
+        public int ContainedByRopeId { get; private set; }
+        public bool IsContained => ContainedByRopeId > 0;
+        public bool IsColorRevealed => !IsHidden || RevealCollectionsRemaining <= 0;
 
         /// <summary>occupiedNodeIds her değiştiğinde artar (path cache invalidation).</summary>
         public int Version { get; private set; }
 
-        public RopeModel(int ropeId, RopeColor color, IReadOnlyList<int> occupiedNodeIds)
+        public RopeModel(int ropeId, RopeColor color, IReadOnlyList<int> occupiedNodeIds, bool hasKey = false,
+            bool hidden = false, int revealAfterCollections = 0, int containedByRopeId = 0)
         {
             RopeId = ropeId;
             Color = color;
+            HasKey = hasKey;
+            IsHidden = hidden;
+            RevealCollectionsRemaining = hidden ? revealAfterCollections : 0;
+            ContainedByRopeId = containedByRopeId;
             _nodes = new List<int>(occupiedNodeIds.Count);
             for (int i = 0; i < occupiedNodeIds.Count; i++) _nodes.Add(occupiedNodeIds[i]);
         }
@@ -74,6 +85,19 @@ namespace SlimyJam.Gameplay
         {
             target.Clear();
             for (int i = 0; i < _nodes.Count; i++) target.Add(_nodes[i]);
+        }
+
+        public bool TickRevealCounter()
+        {
+            if (!IsHidden || RevealCollectionsRemaining <= 0) return false;
+
+            RevealCollectionsRemaining--;
+            return RevealCollectionsRemaining == 0;
+        }
+
+        public void ReleaseFromContainer()
+        {
+            ContainedByRopeId = 0;
         }
     }
 }

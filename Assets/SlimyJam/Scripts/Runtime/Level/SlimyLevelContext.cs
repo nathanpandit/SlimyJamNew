@@ -17,6 +17,7 @@ namespace SlimyJam.Level
         public PathfindingService Pathfinding { get; private set; }
         public FreeEndpointChooser FreeEndpointChooser { get; private set; }
         public StepPlanner StepPlanner { get; private set; }
+        public LevelElementService Elements { get; private set; }
         public CollectionService Collection { get; private set; }
         public SlimyConfig Config { get; private set; }
 
@@ -24,6 +25,7 @@ namespace SlimyJam.Level
         public List<RopeModel> ActiveRopes { get; private set; }
 
         public List<HoleModel> Holes { get; private set; }
+        public List<WallModel> Walls { get; private set; }
 
         public static SlimyLevelContext Build(SlimyLevelData data, SlimyConfig config)
         {
@@ -33,7 +35,8 @@ namespace SlimyJam.Level
                 Graph = new GraphRepository(data.groundNodes),
                 Occupancy = new NodeOccupancyMap(),
                 ActiveRopes = new List<RopeModel>(),
-                Holes = new List<HoleModel>()
+                Holes = new List<HoleModel>(),
+                Walls = new List<WallModel>()
             };
 
             context.Pathfinding = new PathfindingService(context.Graph, context.Occupancy);
@@ -44,21 +47,36 @@ namespace SlimyJam.Level
             for (int i = 0; i < data.holes.Count; i++)
             {
                 var holeData = data.holes[i];
-                context.Holes.Add(new HoleModel(holeData.id, holeData.color, holeData.nodeId));
+                context.Holes.Add(new HoleModel(holeData.id, holeData.color, holeData.nodeId, holeData.hidden,
+                    holeData.revealAfterCollections, holeData.lockedKeyCount));
+            }
+
+            if (data.walls != null)
+            {
+                for (int i = 0; i < data.walls.Count; i++)
+                {
+                    var wallData = data.walls[i];
+                    context.Walls.Add(new WallModel(wallData.id, wallData.nodeId, wallData.ropeCollectionCount));
+                }
             }
 
             for (int i = 0; i < data.ropes.Count; i++)
             {
                 var ropeData = data.ropes[i];
-                context.ActiveRopes.Add(new RopeModel(ropeData.id, ropeData.color, ropeData.occupiedNodeIds));
+                context.ActiveRopes.Add(new RopeModel(ropeData.id, ropeData.color, ropeData.occupiedNodeIds,
+                    ropeData.hasKey, ropeData.hidden, ropeData.revealAfterCollections, ropeData.containedByRopeId));
             }
 
+            context.Elements = new LevelElementService(context.Occupancy, context.ActiveRopes, context.Holes,
+                context.Walls);
             context.Collection = new CollectionService(context.Graph, context.Occupancy, context.Holes,
-                context.ActiveRopes);
+                context.ActiveRopes, context.Elements);
             context.Collection.RegisterHoleOccupancy();
+            context.Elements.RegisterWallOccupancy();
 
             for (int i = 0; i < context.ActiveRopes.Count; i++)
             {
+                if (context.ActiveRopes[i].IsContained) continue;
                 context.StepPlanner.RegisterInitialOccupancy(context.ActiveRopes[i]);
             }
 

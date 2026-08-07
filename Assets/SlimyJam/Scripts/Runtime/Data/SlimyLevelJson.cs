@@ -61,7 +61,8 @@ namespace SlimyJam.Data
         {
             var builder = new StringBuilder();
             builder.AppendLine(LevelDataValidator.Validate(data, out var error) ? "Level data is valid." : error);
-            builder.AppendLine($"nodes: {data.groundNodes.Count}, ropes: {data.ropes.Count}, holes: {data.holes.Count}");
+            builder.AppendLine(
+                $"nodes: {data.groundNodes.Count}, ropes: {data.ropes.Count}, holes: {data.holes.Count}, walls: {data.walls?.Count ?? 0}");
             return builder.ToString();
         }
     }

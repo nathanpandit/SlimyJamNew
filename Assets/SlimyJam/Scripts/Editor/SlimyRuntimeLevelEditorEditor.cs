@@ -11,6 +11,10 @@ namespace SlimyJam.EditorTools
         private SerializedProperty outputFolder;
         private SerializedProperty mode;
         private SerializedProperty paintColor;
+        private SerializedProperty hiddenRevealAfterCollections;
+        private SerializedProperty lockedHoleKeyCount;
+        private SerializedProperty wallRopeCollectionCount;
+        private SerializedProperty containedRopeOuterId;
         private SerializedProperty targetCamera;
         private SerializedProperty graphPlaneY;
         private SerializedProperty limitInputToBoard;
@@ -55,6 +59,10 @@ namespace SlimyJam.EditorTools
             outputFolder = serializedObject.FindProperty("outputFolder");
             mode = serializedObject.FindProperty("mode");
             paintColor = serializedObject.FindProperty("paintColor");
+            hiddenRevealAfterCollections = serializedObject.FindProperty("hiddenRevealAfterCollections");
+            lockedHoleKeyCount = serializedObject.FindProperty("lockedHoleKeyCount");
+            wallRopeCollectionCount = serializedObject.FindProperty("wallRopeCollectionCount");
+            containedRopeOuterId = serializedObject.FindProperty("containedRopeOuterId");
             targetCamera = serializedObject.FindProperty("targetCamera");
             graphPlaneY = serializedObject.FindProperty("graphPlaneY");
             limitInputToBoard = serializedObject.FindProperty("limitInputToBoard");
@@ -99,6 +107,7 @@ namespace SlimyJam.EditorTools
             serializedObject.Update();
 
             DrawLevelSection();
+            DrawElementsSection();
             DrawInputSection();
             DrawDrawingAssistSection();
             DrawBakeSection();
@@ -121,6 +130,16 @@ namespace SlimyJam.EditorTools
             EditorGUILayout.PropertyField(outputFolder);
             EditorGUILayout.PropertyField(mode);
             EditorGUILayout.PropertyField(paintColor);
+        }
+
+        private void DrawElementsSection()
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Elements", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(hiddenRevealAfterCollections);
+            EditorGUILayout.PropertyField(lockedHoleKeyCount);
+            EditorGUILayout.PropertyField(wallRopeCollectionCount);
+            EditorGUILayout.PropertyField(containedRopeOuterId);
         }
 
         private void DrawInputSection()
@@ -192,7 +211,11 @@ namespace SlimyJam.EditorTools
             EditorGUILayout.LabelField("Edges", levelEditor.EdgeCount.ToString());
             EditorGUILayout.LabelField("Ropes", levelEditor.RopeCount.ToString());
             EditorGUILayout.LabelField("Holes", levelEditor.HoleCount.ToString());
+            EditorGUILayout.LabelField("Walls", levelEditor.WallCount.ToString());
             EditorGUILayout.LabelField("Current Rope Nodes", levelEditor.CurrentRopeCount.ToString());
+            EditorGUILayout.LabelField("Outer Rope", levelEditor.CurrentOuterRopeId == 0
+                ? "None"
+                : levelEditor.CurrentOuterRopeId.ToString());
 
             if (!Application.isPlaying)
             {
@@ -250,7 +273,7 @@ namespace SlimyJam.EditorTools
             if (GUILayout.Button("Clear Occupants"))
             {
                 if (EditorUtility.DisplayDialog("Clear Occupants",
-                        "Remove all painted ropes and holes from the baked graph?", "Clear", "Cancel"))
+                        "Remove all painted ropes, holes, and walls from the baked graph?", "Clear", "Cancel"))
                 {
                     levelEditor.ClearOccupants();
                     MarkChanged(levelEditor);

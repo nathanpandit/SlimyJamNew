@@ -13,11 +13,20 @@ namespace SlimyJam.Core
     public interface IRopeOccupant : INodeOccupant
     {
         int RopeId { get; }
+        bool IsColorRevealed { get; }
     }
 
     public interface IHoleOccupant : INodeOccupant
     {
         int HoleId { get; }
+        int NodeId { get; }
+        bool IsColorRevealed { get; }
+        bool IsUnlocked { get; }
+    }
+
+    public interface IWallOccupant : INodeOccupant
+    {
+        int WallId { get; }
         int NodeId { get; }
     }
 }

@@ -110,7 +110,7 @@ namespace SlimyJam.Gameplay
             plan.CollectionEnd = freeEnd;
 
             // Serbest uç matching hole'a girerse genel collection kuralı çalışır (GDD 8.7).
-            if (_occupancy.GetOccupant(candidate) is IHoleOccupant hole && hole.Color == rope.Color)
+            if (_occupancy.GetOccupant(candidate) is IHoleOccupant hole && TraversalRules.CanEnterHole(rope, hole))
             {
                 plan.CollectionHoleId = hole.HoleId;
             }

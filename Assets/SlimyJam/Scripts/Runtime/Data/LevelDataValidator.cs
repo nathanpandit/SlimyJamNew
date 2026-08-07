@@ -71,6 +71,15 @@ namespace SlimyJam.Data
 
             // Occupancy: her node en fazla bir occupant taşır.
             var occupancy = new Dictionary<int, string>();
+            var ropeById = new Dictionary<int, RopeData>();
+
+            if (data.ropes != null)
+            {
+                foreach (var rope in data.ropes)
+                {
+                    if (!ropeById.ContainsKey(rope.id)) ropeById.Add(rope.id, rope);
+                }
+            }
 
             if (data.holes != null)
             {
@@ -88,6 +97,16 @@ namespace SlimyJam.Data
                         continue;
                     }
 
+                    if (hole.hidden && hole.revealAfterCollections <= 0)
+                    {
+                        sb.AppendLine($"Hidden hole {hole.id} must require at least 1 collected rope to reveal.");
+                    }
+
+                    if (hole.lockedKeyCount < 0)
+                    {
+                        sb.AppendLine($"Hole {hole.id} has a negative lock key count.");
+                    }
+
                     if (occupancy.TryGetValue(hole.nodeId, out var owner))
                     {
                         sb.AppendLine($"Node {hole.nodeId} is occupied by both {owner} and hole {hole.id}.");
@@ -98,6 +117,37 @@ namespace SlimyJam.Data
                 }
             }
 
+            if (data.walls != null)
+            {
+                var wallIds = new HashSet<int>();
+                foreach (var wall in data.walls)
+                {
+                    if (!wallIds.Add(wall.id))
+                    {
+                        sb.AppendLine($"Duplicate wall id {wall.id}.");
+                    }
+
+                    if (!nodesById.ContainsKey(wall.nodeId))
+                    {
+                        sb.AppendLine($"Wall {wall.id} references missing node id {wall.nodeId}.");
+                        continue;
+                    }
+
+                    if (wall.ropeCollectionCount <= 0)
+                    {
+                        sb.AppendLine($"Wall {wall.id} must require at least 1 collected rope to disappear.");
+                    }
+
+                    if (occupancy.TryGetValue(wall.nodeId, out var owner))
+                    {
+                        sb.AppendLine($"Node {wall.nodeId} is occupied by both {owner} and wall {wall.id}.");
+                        continue;
+                    }
+
+                    occupancy[wall.nodeId] = $"wall {wall.id}";
+                }
+            }
+
             if (data.ropes == null || data.ropes.Count == 0)
             {
                 sb.AppendLine("LevelData contains no ropes; level would start already completed.");
@@ -105,6 +155,7 @@ namespace SlimyJam.Data
             else
             {
                 var ropeIds = new HashSet<int>();
+                var usedOuterRopeIds = new HashSet<int>();
                 foreach (var rope in data.ropes)
                 {
                     if (!ropeIds.Add(rope.id))
@@ -118,6 +169,28 @@ namespace SlimyJam.Data
                         continue;
                     }
 
+                    if (rope.hidden && rope.revealAfterCollections <= 0)
+                    {
+                        sb.AppendLine($"Hidden rope {rope.id} must require at least 1 collected rope to reveal.");
+                    }
+
+                    RopeData outerRope = null;
+                    if (rope.containedByRopeId > 0)
+                    {
+                        if (rope.containedByRopeId == rope.id)
+                        {
+                            sb.AppendLine($"Rope {rope.id} cannot be contained by itself.");
+                        }
+                        else if (!ropeById.TryGetValue(rope.containedByRopeId, out outerRope))
+                        {
+                            sb.AppendLine($"Rope {rope.id} references missing outer rope {rope.containedByRopeId}.");
+                        }
+                        else if (!usedOuterRopeIds.Add(rope.containedByRopeId))
+                        {
+                            sb.AppendLine($"Outer rope {rope.containedByRopeId} contains more than one inner rope.");
+                        }
+                    }
+
                     for (int i = 0; i < rope.occupiedNodeIds.Count; i++)
                     {
                         var nodeId = rope.occupiedNodeIds[i];
@@ -127,11 +200,18 @@ namespace SlimyJam.Data
                             continue;
                         }
 
-                        if (occupancy.TryGetValue(nodeId, out var owner))
+                        if (outerRope != null && (outerRope.occupiedNodeIds == null ||
+                                                  !outerRope.occupiedNodeIds.Contains(nodeId)))
+                        {
+                            sb.AppendLine(
+                                $"Contained rope {rope.id} uses node {nodeId}, which is outside outer rope {outerRope.id}.");
+                        }
+
+                        if (outerRope == null && occupancy.TryGetValue(nodeId, out var owner))
                         {
                             sb.AppendLine($"Node {nodeId} is occupied by both {owner} and rope {rope.id}.");
                         }
-                        else
+                        else if (outerRope == null)
                         {
                             occupancy[nodeId] = $"rope {rope.id}";
                         }

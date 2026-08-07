@@ -66,6 +66,17 @@ namespace SlimyJam.Tests
             return this;
         }
 
+        public TestLevelBuilder Wall(int id, Vector2Int cell, int ropeCollectionCount)
+        {
+            _data.walls.Add(new WallData
+            {
+                id = id,
+                nodeId = _ids[cell],
+                ropeCollectionCount = ropeCollectionCount
+            });
+            return this;
+        }
+
         public SlimyLevelData BuildData()
         {
             _data.groundNodes.Clear();

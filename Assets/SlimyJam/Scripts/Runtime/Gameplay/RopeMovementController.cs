@@ -36,6 +36,7 @@ namespace SlimyJam.Gameplay
 
         /// <summary>Release sonrası snap tamamlandı; hole collection kontrolü burada yapılır (GDD 8.4 adım 6).</summary>
         public event Action ReleaseCompleted;
+        public event Action<RopeModel> StepCommitted;
 
         public RopeEnd ActiveEnd { get; private set; }
         public bool IsDragging { get; private set; }
@@ -269,7 +270,9 @@ namespace SlimyJam.Gameplay
                 return true;
             }
 
-            return _stepPlanner.TryCommit(_rope, _step);
+            var committed = _stepPlanner.TryCommit(_rope, _step);
+            if (committed) StepCommitted?.Invoke(_rope);
+            return committed;
         }
 
         private void TickSnap(float deltaTime)
