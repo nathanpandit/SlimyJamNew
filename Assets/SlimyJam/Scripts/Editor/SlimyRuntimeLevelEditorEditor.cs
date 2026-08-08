@@ -12,6 +12,7 @@ namespace SlimyJam.EditorTools
         private SerializedProperty mode;
         private SerializedProperty paintColor;
         private SerializedProperty hiddenRevealAfterCollections;
+        private SerializedProperty frozenUnfreezeAfterCollections;
         private SerializedProperty lockedHoleKeyCount;
         private SerializedProperty wallRopeCollectionCount;
         private SerializedProperty containedRopeOuterId;
@@ -60,6 +61,7 @@ namespace SlimyJam.EditorTools
             mode = serializedObject.FindProperty("mode");
             paintColor = serializedObject.FindProperty("paintColor");
             hiddenRevealAfterCollections = serializedObject.FindProperty("hiddenRevealAfterCollections");
+            frozenUnfreezeAfterCollections = serializedObject.FindProperty("frozenUnfreezeAfterCollections");
             lockedHoleKeyCount = serializedObject.FindProperty("lockedHoleKeyCount");
             wallRopeCollectionCount = serializedObject.FindProperty("wallRopeCollectionCount");
             containedRopeOuterId = serializedObject.FindProperty("containedRopeOuterId");
@@ -137,6 +139,7 @@ namespace SlimyJam.EditorTools
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Elements", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(hiddenRevealAfterCollections);
+            EditorGUILayout.PropertyField(frozenUnfreezeAfterCollections);
             EditorGUILayout.PropertyField(lockedHoleKeyCount);
             EditorGUILayout.PropertyField(wallRopeCollectionCount);
             EditorGUILayout.PropertyField(containedRopeOuterId);

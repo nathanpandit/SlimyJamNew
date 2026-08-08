@@ -35,6 +35,8 @@ namespace SlimyJam.Data
         public bool hasKey;
         public bool hidden;
         public int revealAfterCollections;
+        public bool frozen;
+        public int unfreezeAfterCollections;
         public int containedByRopeId;
     }
 

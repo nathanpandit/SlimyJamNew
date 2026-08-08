@@ -174,6 +174,11 @@ namespace SlimyJam.Data
                         sb.AppendLine($"Hidden rope {rope.id} must require at least 1 collected rope to reveal.");
                     }
 
+                    if (rope.frozen && rope.unfreezeAfterCollections <= 0)
+                    {
+                        sb.AppendLine($"Frozen rope {rope.id} must require at least 1 collected rope to unfreeze.");
+                    }
+
                     RopeData outerRope = null;
                     if (rope.containedByRopeId > 0)
                     {

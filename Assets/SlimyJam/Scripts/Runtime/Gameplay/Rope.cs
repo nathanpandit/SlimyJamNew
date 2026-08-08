@@ -40,6 +40,7 @@ namespace SlimyJam.Gameplay
         private float _ropeHeight;
         private float _baseRadius;
         private Transform _keyMarker;
+        private Transform _frozenMarker;
         private Rope _containerRope;
         private readonly List<int> _containerUnitIndices = new List<int>();
 
@@ -47,7 +48,8 @@ namespace SlimyJam.Gameplay
         public RopeMovementController Movement { get; private set; }
         public RopeState State { get; private set; } = RopeState.Idle;
 
-        public bool IsSelectable => !Model.IsContained && (State == RopeState.Idle || State == RopeState.Snapping);
+        public bool IsSelectable =>
+            !Model.IsContained && !Model.IsFrozen && (State == RopeState.Idle || State == RopeState.Snapping);
 
         public void Initialize(RopeModel model, SlimyLevelContext context, ISplineAdapter splineAdapter)
         {
@@ -62,6 +64,7 @@ namespace SlimyJam.Gameplay
 
             RefreshAppearance();
             EnsureKeyMarker();
+            EnsureFrozenMarker();
 
             RefreshVisual();
         }
@@ -105,6 +108,7 @@ namespace SlimyJam.Gameplay
         {
             State = RopeState.Collected;
             if (_keyMarker != null) _keyMarker.gameObject.SetActive(false);
+            if (_frozenMarker != null) _frozenMarker.gameObject.SetActive(false);
         }
 
         private void Update()
@@ -186,6 +190,7 @@ namespace SlimyJam.Gameplay
 
             _splineAdapter.UpdatePoints(_renderPoints);
             UpdateKeyMarker();
+            UpdateFrozenMarker();
             VisualRefreshed?.Invoke(this);
         }
 
@@ -224,6 +229,34 @@ namespace SlimyJam.Gameplay
             if (!visible || _renderPoints.Count == 0) return;
 
             _keyMarker.position = _renderPoints[_renderPoints.Count / 2] + Vector3.up * 0.12f;
+        }
+
+        private void EnsureFrozenMarker()
+        {
+            if (!Model.StartsFrozen) return;
+
+            var marker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            marker.name = "FrozenMarker";
+            var collider = marker.GetComponent<Collider>();
+            if (collider != null) Destroy(collider);
+
+            _frozenMarker = marker.transform;
+            _frozenMarker.SetParent(transform, false);
+            _frozenMarker.localScale = Vector3.one * Mathf.Max(0.1f, _baseRadius * 1.45f);
+
+            var renderer = marker.GetComponent<MeshRenderer>();
+            if (renderer != null) renderer.sharedMaterial = SlimyPalette.GetMaterial(SlimyPalette.Frozen);
+        }
+
+        private void UpdateFrozenMarker()
+        {
+            if (_frozenMarker == null) return;
+
+            var visible = Model.IsFrozen && State != RopeState.Collected;
+            _frozenMarker.gameObject.SetActive(visible);
+            if (!visible || _renderPoints.Count == 0) return;
+
+            _frozenMarker.position = _renderPoints[_renderPoints.Count / 2] + Vector3.up * 0.22f;
         }
     }
 }

@@ -23,21 +23,27 @@ namespace SlimyJam.Gameplay
         public bool HasKey { get; }
         public bool IsHidden { get; }
         public int RevealCollectionsRemaining { get; private set; }
+        public bool StartsFrozen { get; }
+        public int UnfreezeCollectionsRemaining { get; private set; }
         public int ContainedByRopeId { get; private set; }
         public bool IsContained => ContainedByRopeId > 0;
         public bool IsColorRevealed => !IsHidden || RevealCollectionsRemaining <= 0;
+        public bool IsFrozen => StartsFrozen && UnfreezeCollectionsRemaining > 0;
 
         /// <summary>occupiedNodeIds her değiştiğinde artar (path cache invalidation).</summary>
         public int Version { get; private set; }
 
         public RopeModel(int ropeId, RopeColor color, IReadOnlyList<int> occupiedNodeIds, bool hasKey = false,
-            bool hidden = false, int revealAfterCollections = 0, int containedByRopeId = 0)
+            bool hidden = false, int revealAfterCollections = 0, int containedByRopeId = 0, bool frozen = false,
+            int unfreezeAfterCollections = 0)
         {
             RopeId = ropeId;
             Color = color;
             HasKey = hasKey;
             IsHidden = hidden;
             RevealCollectionsRemaining = hidden ? revealAfterCollections : 0;
+            StartsFrozen = frozen;
+            UnfreezeCollectionsRemaining = frozen ? unfreezeAfterCollections : 0;
             ContainedByRopeId = containedByRopeId;
             _nodes = new List<int>(occupiedNodeIds.Count);
             for (int i = 0; i < occupiedNodeIds.Count; i++) _nodes.Add(occupiedNodeIds[i]);
@@ -93,6 +99,14 @@ namespace SlimyJam.Gameplay
 
             RevealCollectionsRemaining--;
             return RevealCollectionsRemaining == 0;
+        }
+
+        public bool TickUnfreezeCounter()
+        {
+            if (!StartsFrozen || UnfreezeCollectionsRemaining <= 0) return false;
+
+            UnfreezeCollectionsRemaining--;
+            return UnfreezeCollectionsRemaining == 0;
         }
 
         public void ReleaseFromContainer()

@@ -19,6 +19,7 @@ namespace SlimyJam.LevelEditing
         Rope,
         Key,
         Hidden,
+        Frozen,
         Lock,
         Wall,
         DoubleRope,
@@ -63,6 +64,7 @@ namespace SlimyJam.LevelEditing
 
         [Header("Elements")]
         [SerializeField, Min(1)] private int hiddenRevealAfterCollections = 3;
+        [SerializeField, Min(1)] private int frozenUnfreezeAfterCollections = 3;
         [SerializeField, Min(1)] private int lockedHoleKeyCount = 3;
         [SerializeField, Min(1)] private int wallRopeCollectionCount = 3;
         [SerializeField, Tooltip("0 paints a normal rope. Choose an outer rope in Double Rope mode to paint an inner rope inside it.")]
@@ -186,6 +188,8 @@ namespace SlimyJam.LevelEditing
             public bool HasKey;
             public bool Hidden;
             public int RevealAfterCollections;
+            public bool Frozen;
+            public int UnfreezeAfterCollections;
             public int ContainedByRopeId;
         }
 
@@ -240,6 +244,7 @@ namespace SlimyJam.LevelEditing
             nodePickRadius = Mathf.Max(0.01f, nodePickRadius);
             pathEraseRadius = Mathf.Max(0.01f, pathEraseRadius);
             hiddenRevealAfterCollections = Mathf.Max(1, hiddenRevealAfterCollections);
+            frozenUnfreezeAfterCollections = Mathf.Max(1, frozenUnfreezeAfterCollections);
             lockedHoleKeyCount = Mathf.Max(1, lockedHoleKeyCount);
             wallRopeCollectionCount = Mathf.Max(1, wallRopeCollectionCount);
             containedRopeOuterId = Mathf.Max(0, containedRopeOuterId);
@@ -1072,6 +1077,9 @@ namespace SlimyJam.LevelEditing
                 case SlimyRuntimeLevelEditorMode.Hidden:
                     ToggleHidden(nodeId);
                     break;
+                case SlimyRuntimeLevelEditorMode.Frozen:
+                    ToggleFrozen(nodeId);
+                    break;
                 case SlimyRuntimeLevelEditorMode.Lock:
                     ToggleLock(nodeId);
                     break;
@@ -1263,6 +1271,31 @@ namespace SlimyJam.LevelEditing
                 hole.hidden = true;
                 hole.revealAfterCollections = hiddenRevealAfterCollections;
                 SetReport($"Hole {hole.id} will reveal after {hiddenRevealAfterCollections} collected rope(s).");
+            }
+
+            RebuildPreview();
+        }
+
+        private void ToggleFrozen(int nodeId)
+        {
+            if (!FindRopeContainingNode(nodeId, out var ropeIndex, true))
+            {
+                SetReport($"Node {nodeId} has no rope to toggle frozen state on.");
+                return;
+            }
+
+            var rope = bakedData.ropes[ropeIndex];
+            if (rope.frozen && rope.unfreezeAfterCollections == frozenUnfreezeAfterCollections)
+            {
+                rope.frozen = false;
+                rope.unfreezeAfterCollections = 0;
+                SetReport($"Rope {rope.id} is no longer frozen.");
+            }
+            else
+            {
+                rope.frozen = true;
+                rope.unfreezeAfterCollections = frozenUnfreezeAfterCollections;
+                SetReport($"Rope {rope.id} will unfreeze after {frozenUnfreezeAfterCollections} collected rope(s).");
             }
 
             RebuildPreview();
@@ -1581,6 +1614,8 @@ namespace SlimyJam.LevelEditing
                     HasKey = rope.hasKey,
                     Hidden = rope.hidden,
                     RevealAfterCollections = rope.revealAfterCollections,
+                    Frozen = rope.frozen,
+                    UnfreezeAfterCollections = rope.unfreezeAfterCollections,
                     ContainedByRopeId = rope.containedByRopeId
                 };
                 var valid = true;
@@ -1652,6 +1687,8 @@ namespace SlimyJam.LevelEditing
                     hasKey = snapshot.HasKey,
                     hidden = snapshot.Hidden,
                     revealAfterCollections = snapshot.RevealAfterCollections,
+                    frozen = snapshot.Frozen,
+                    unfreezeAfterCollections = snapshot.UnfreezeAfterCollections,
                     containedByRopeId = snapshot.ContainedByRopeId
                 };
                 var valid = true;
@@ -2723,6 +2760,12 @@ namespace SlimyJam.LevelEditing
                     CreateMarker($"Rope_{rope.id}_Key", points[points.Count / 2] + Vector3.up * 0.2f,
                         nodePreviewSize * 1.2f, SlimyPalette.Key);
                 }
+
+                if (rope.frozen && points.Count > 0)
+                {
+                    CreateMarker($"Rope_{rope.id}_Frozen", points[points.Count / 2] + Vector3.up * 0.32f,
+                        nodePreviewSize * 1.1f, SlimyPalette.Frozen);
+                }
             }
 
             if (currentRopeNodeIds.Count > 0)
@@ -3263,6 +3306,8 @@ namespace SlimyJam.LevelEditing
                         hasKey = rope.hasKey,
                         hidden = rope.hidden,
                         revealAfterCollections = rope.revealAfterCollections,
+                        frozen = rope.frozen,
+                        unfreezeAfterCollections = rope.unfreezeAfterCollections,
                         containedByRopeId = rope.containedByRopeId,
                         occupiedNodeIds = rope.occupiedNodeIds != null
                             ? new List<int>(rope.occupiedNodeIds)

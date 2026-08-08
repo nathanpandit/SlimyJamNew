@@ -546,6 +546,30 @@ namespace SlimyJam.Tests
             Assert.IsFalse(completed);
         }
 
+        [Test]
+        public void ELEM_05_FrozenRopeUnfreezesAfterEnoughRopesCollected()
+        {
+            var builder = new TestLevelBuilder()
+                .Line(0, 0, 4, 0)
+                .Line(10, 0, 12, 0);
+            builder.Rope(1, RopeColor.Green, C(0, 0), C(1, 0));
+            builder.Hole(10, RopeColor.Green, C(4, 0));
+            builder.Rope(2, RopeColor.Blue, C(10, 0), C(11, 0));
+            builder.Hole(11, RopeColor.Blue, C(12, 0));
+            var data = builder.BuildData();
+            data.ropes[0].frozen = true;
+            data.ropes[0].unfreezeAfterCollections = 1;
+
+            var context = SlimyLevelContext.Build(data, CreateConfig());
+            var frozen = FindRope(context, 1);
+
+            Assert.IsTrue(frozen.IsFrozen);
+
+            context.Collection.BeginCollection(FindRope(context, 2), context.Collection.GetHole(11));
+
+            Assert.IsFalse(frozen.IsFrozen);
+        }
+
         // --------------------------------------------------------------- LOAD
 
         [Test]

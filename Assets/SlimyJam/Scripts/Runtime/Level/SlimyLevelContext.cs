@@ -64,7 +64,8 @@ namespace SlimyJam.Level
             {
                 var ropeData = data.ropes[i];
                 context.ActiveRopes.Add(new RopeModel(ropeData.id, ropeData.color, ropeData.occupiedNodeIds,
-                    ropeData.hasKey, ropeData.hidden, ropeData.revealAfterCollections, ropeData.containedByRopeId));
+                    ropeData.hasKey, ropeData.hidden, ropeData.revealAfterCollections, ropeData.containedByRopeId,
+                    ropeData.frozen, ropeData.unfreezeAfterCollections));
             }
 
             context.Elements = new LevelElementService(context.Occupancy, context.ActiveRopes, context.Holes,

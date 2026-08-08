@@ -153,6 +153,7 @@ namespace SlimyJam.Gameplay
             if (rope.HasKey) UseKeyOnLockedHoles();
 
             TickHiddenRevealCounters();
+            TickFrozenCounters();
             TickWalls();
             ReleaseContainedRopes(rope);
         }
@@ -188,6 +189,14 @@ namespace SlimyJam.Gameplay
                 _occupancy.Free(wall.NodeId);
                 _walls.RemoveAt(i);
                 WallRemoved?.Invoke(wall);
+            }
+        }
+
+        private void TickFrozenCounters()
+        {
+            for (int i = 0; i < _activeRopes.Count; i++)
+            {
+                if (_activeRopes[i].TickUnfreezeCounter()) RopeStateChanged?.Invoke(_activeRopes[i]);
             }
         }
 
